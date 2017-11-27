@@ -59,7 +59,10 @@ def separateData(picObservations, testPictures, testLabels):
     return observations, newTestPictures
 
 def myGauFit(obs):
-    return GaussianHMM(n_components=48, covariance_type='full', n_iter=100).fit(obs)
+    print 'starting model', obs[1]
+    result = GaussianHMM(n_components=48, covariance_type='full', n_iter=100).fit(obs[0], obs[1])
+    print 'completed model', obs[1]
+    return result
 
 def scoreModels(models, newTestPictures, testNum, testLabels, verbose=True):
 
@@ -87,7 +90,7 @@ def scoreModels(models, newTestPictures, testNum, testLabels, verbose=True):
     print 'acc: ', float(acc)/total_num
 
 if __name__ == "__main__":
-    num = 2500
+    num = 5000
     testNum = 500
 
     testLabels = ['0', '1', '2', '3', '4', '6']
@@ -96,6 +99,7 @@ if __name__ == "__main__":
     picObservations, labels, testPictures, groundTruth, testNum = readInData(num, testNum, testLabels)
     print 'separating data'
     observations, newTestPictures = separateData(picObservations, testPictures, testLabels)
+    observations = zip(observations, testLabels)
     # observations = [obs0, obs1, obs2, obs3, obs4, obs6]
     print 'fitting gauModels'
     gauModels = list(Pool(len(observations)).map(myGauFit, observations))

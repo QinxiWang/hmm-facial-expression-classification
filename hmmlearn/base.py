@@ -348,7 +348,7 @@ class _BaseHMM(BaseEstimator):
 
         return np.array(obs), np.array(hidden_states, dtype=int)
 
-    def fit(self, obs):
+    def fit(self, obs, modelNum):
         """Estimate model parameters.
 
         An initialization step is performed before entering the EM
@@ -375,8 +375,8 @@ class _BaseHMM(BaseEstimator):
 
         logprob = []
         for i in range(self.n_iter):
-	    if i%(self.n_iter // 10) == 0:
-		print "happening at round", i
+            if i % (self.n_iter // 10) == 0:
+                print 'model', modelNum, ':', i
             # Expectation step
             stats = self._initialize_sufficient_statistics()
             curr_logprob = 0

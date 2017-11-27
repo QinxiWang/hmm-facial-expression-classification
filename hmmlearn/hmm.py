@@ -14,7 +14,7 @@ import string
 import numpy as np
 from sklearn.utils import check_random_state
 from sklearn.mixture import (
-    GMM, sample_gaussian,
+    GaussianMixture, sample_gaussian,
     distribute_covar_matrix_to_match_covariance_type, _validate_covars)
 from sklearn import cluster
 
@@ -306,7 +306,7 @@ class GaussianHMM(_BaseHMM):
                     self._covars_ = ((covars_prior + cvnum) /
                                      (cvweight + stats['post'][:, None, None]))
 
-    def fit(self, obs):
+    def fit(self, obs, modelNum):
         """Estimate model parameters.
 
         An initialization step is performed before entering the EM
@@ -328,7 +328,7 @@ class GaussianHMM(_BaseHMM):
         more components becomminging too small).  You can fix this by getting
         more training data, or increasing covars_prior.
         """
-        return super(GaussianHMM, self).fit(obs)
+        return super(GaussianHMM, self).fit(obs, modelNum)
 
 
 class MultinomialHMM(_BaseHMM):
@@ -507,9 +507,9 @@ class MultinomialHMM(_BaseHMM):
             sequence should consist of two or more integers from
             range ``[0, n_symbols - 1]``.
         """
-        if not self._check_input_symbols(obs):
-            raise ValueError("expected a sample from "
-                             "a Multinomial distribution.")
+        # if not self._check_input_symbols(obs):
+        #     raise ValueError("expected a sample from "
+        #                      "a Multinomial distribution.")
 
         return _BaseHMM.fit(self, obs, **kwargs)
 
@@ -597,9 +597,9 @@ class GMMHMM(_BaseHMM):
             gmms = []
             for x in range(self.n_components):
                 if covariance_type is None:
-                    g = GMM(n_mix)
+                    g = GaussianMixture(n_mix)
                 else:
-                    g = GMM(n_mix, covariance_type=covariance_type)
+                    g = GaussianMixture(n_mix, covariance_type=covariance_type)
                 gmms.append(g)
         self.gmms_ = gmms
 
@@ -645,7 +645,7 @@ class GMMHMM(_BaseHMM):
             lgmm_posteriors += np.log(posteriors[:, state][:, np.newaxis]
                                       + np.finfo(np.float).eps)
             gmm_posteriors = np.exp(lgmm_posteriors)
-            tmp_gmm = GMM(g.n_components, covariance_type=g.covariance_type)
+            tmp_gmm = GaussianMixture(g.n_components, covariance_type=g.covariance_type)
             n_features = g.means_.shape[1]
             tmp_gmm._set_covars(
                 distribute_covar_matrix_to_match_covariance_type(
