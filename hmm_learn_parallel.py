@@ -87,11 +87,11 @@ def scoreModels(models, newTestPictures, testNum, testLabels, verbose=True):
     print 'acc: ', float(acc)/total_num
 
 if __name__ == "__main__":
-    num = 500
+    num = 2500
     testNum = 500
 
     testLabels = ['0', '1', '2', '3', '4', '6']
-
+    print 'running with', num, 'pictures'
     print 'reading in data'
     picObservations, labels, testPictures, groundTruth, testNum = readInData(num, testNum, testLabels)
     print 'separating data'
