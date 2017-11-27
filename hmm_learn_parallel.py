@@ -99,8 +99,9 @@ if __name__ == "__main__":
     print 'fitting gauModels'
     gauModels = list(Pool(len(observations)).map(myGauFit, observations))
 
-    for i in testLabels:
-        joblib.dump(gauModels[i], 'models/model' + i + '.pkl')
-
     print 'did gauModels'
     scoreModels(gauModels, newTestPictures, testNum, testLabels)
+
+    print 'saving'
+    for index, i in enumerate(testLabels):
+        joblib.dump(gauModels[index], 'models/model' + i + '.pkl')
