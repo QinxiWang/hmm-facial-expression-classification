@@ -45,17 +45,18 @@ def readInData(num=500, testNum=100, testLabels=['0', '4', '5', '6'], all_sample
 
     return picObservations, labels, testPictures, groundTruth, testNum
 
-def separateData(picObservations, testPictures):
+def separateData(picObservations, testPictures, testLabels):
     newPicObservations = rowPics2Mat(picObservations)
     newTestPictures = rowPics2Mat(testPictures)
-    obs0 = [newPicObservations[i] for i in range(len(newPicObservations)) if labels[i] == '0']
-    obs1 = [newPicObservations[i] for i in range(len(newPicObservations)) if labels[i] == '1']
-    obs2 = [newPicObservations[i] for i in range(len(newPicObservations)) if labels[i] == '2']
-    obs3 = [newPicObservations[i] for i in range(len(newPicObservations)) if labels[i] == '3']
-    obs4 = [newPicObservations[i] for i in range(len(newPicObservations)) if labels[i] == '4']
-    obs5 = [newPicObservations[i] for i in range(len(newPicObservations)) if labels[i] == '5']
-    obs6 = [newPicObservations[i] for i in range(len(newPicObservations)) if labels[i] == '6']
-    return obs0, obs1, obs2, obs3, obs4, obs5, obs6, newTestPictures
+    observations = [[newPicObservations[i] for i in range(len(newPicObservations)) if labels[i] == label] for label in testLabels]
+    # obs0 = [newPicObservations[i] for i in range(len(newPicObservations)) if labels[i] == '0']
+    # obs1 = [newPicObservations[i] for i in range(len(newPicObservations)) if labels[i] == '1']
+    # obs2 = [newPicObservations[i] for i in range(len(newPicObservations)) if labels[i] == '2']
+    # obs3 = [newPicObservations[i] for i in range(len(newPicObservations)) if labels[i] == '3']
+    # obs4 = [newPicObservations[i] for i in range(len(newPicObservations)) if labels[i] == '4']
+    # obs5 = [newPicObservations[i] for i in range(len(newPicObservations)) if labels[i] == '5']
+    # obs6 = [newPicObservations[i] for i in range(len(newPicObservations)) if labels[i] == '6']
+    return observations, newTestPictures
 
 def myGauFit(obs):
     return GaussianHMM(n_components=48, covariance_type='full', n_iter=100).fit(obs)
@@ -94,14 +95,14 @@ if __name__ == "__main__":
     print 'reading in data'
     picObservations, labels, testPictures, groundTruth, testNum = readInData(num, testNum, testLabels)
     print 'separating data'
-    obs0, obs1, obs2, obs3, obs4, obs5, obs6, newTestPictures = separateData(picObservations, testPictures)
-    observations = [obs0, obs1, obs2, obs3, obs4, obs6]
+    observations, newTestPictures = separateData(picObservations, testPictures, testLabels)
+    # observations = [obs0, obs1, obs2, obs3, obs4, obs6]
     print 'fitting gauModels'
     gauModels = list(Pool(len(observations)).map(myGauFit, observations))
 
-    print 'did gauModels'
-    scoreModels(gauModels, newTestPictures, testNum, testLabels)
+    print 'scoring gauModels'
+    scoreModels(gauModels, newTestPictures, testNum, testLabels, False)
 
     print 'saving'
     for index, i in enumerate(testLabels):
-        joblib.dump(gauModels[index], 'models/model' + i + '.pkl')
+        joblib.dump(gauModels[index], 'models/model-' + i + '.pkl')
