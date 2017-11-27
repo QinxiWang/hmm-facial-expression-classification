@@ -22,13 +22,13 @@ def rowPics2Mat(pictures):
 # num 50: -16242.8598496
 # num 100: -15691.0567749
 
-def readInData(num=500, testNum=100, testLabels=['0', '4', '5', '6'], all=False):
+def readInData(num=500, testNum=100, testLabels=['0', '4', '5', '6'], all_samples=False):
     testStartIndex = 28711
 
     x = open('fer2013.csv', 'r').readlines()
     pictures = [i.split(',') for i in x]
 
-    if all:
+    if all_samples:
         picObservations = [[int(j) for j in i[1].split()] for i in pictures if (i[0] in testLabels and i[2] == "Training\n")]
         labels = [i[0] for i in pictures if (i[0] in testLabels and i[2] == "Training\n")]
 
