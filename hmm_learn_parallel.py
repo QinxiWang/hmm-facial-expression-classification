@@ -49,13 +49,9 @@ def separateData(picObservations, testPictures, testLabels):
     newPicObservations = rowPics2Mat(picObservations)
     newTestPictures = rowPics2Mat(testPictures)
     observations = [[newPicObservations[i] for i in range(len(newPicObservations)) if labels[i] == label] for label in testLabels]
-    # obs0 = [newPicObservations[i] for i in range(len(newPicObservations)) if labels[i] == '0']
-    # obs1 = [newPicObservations[i] for i in range(len(newPicObservations)) if labels[i] == '1']
-    # obs2 = [newPicObservations[i] for i in range(len(newPicObservations)) if labels[i] == '2']
-    # obs3 = [newPicObservations[i] for i in range(len(newPicObservations)) if labels[i] == '3']
-    # obs4 = [newPicObservations[i] for i in range(len(newPicObservations)) if labels[i] == '4']
-    # obs5 = [newPicObservations[i] for i in range(len(newPicObservations)) if labels[i] == '5']
-    # obs6 = [newPicObservations[i] for i in range(len(newPicObservations)) if labels[i] == '6']
+    for i, j in zip(observations, testLabels):
+        print len(i), 'pics in label', j
+
     return observations, newTestPictures
 
 def myGauFit(obs):
@@ -64,10 +60,31 @@ def myGauFit(obs):
     print 'completed model', obs[1]
     return result
 
+def tuplesToConfusion(tuples, testLabels):
+
+    indices = {}
+    for i, j in enumerate(testLabels):
+        indices[j] = i
+
+    result = [[0 for j in testLabels] for i in testLabels]
+    for i, j in tuples:
+        result[indices[i]][indices[j]] += 1
+    result = [[str(result[i][j]) for j in range(len(testLabels))] for i in range(len(testLabels))]
+    return result
+
+def printConfusion(arr, testLabels):
+    lineLen = len("   | \'" + "\' | \'".join(testLabels) + "\' |")
+    print "   | \'" + "\' | \'".join(testLabels) + "\' |"
+    print '-' * lineLen
+    for i, j in enumerate(arr):
+        # this may be the worst line of code I've ever written. I hate text formatting
+        print "\'" + testLabels[i] + "\'|" + '|'.join([' ' * (1 + (len(k) == 1) - (len(k) >= 4)) + k + ' ' * (2 - (len(k) == 5) - (len(k) >= 4)) for k in j]) + '|'
+        print '-' * lineLen
+
 def scoreModels(models, newTestPictures, testNum, testLabels, verbose=True):
 
+    confusionTuples = []
     acc = 0
-
     for picChecked in range(testNum):
         if verbose:
             print "checking num", picChecked
@@ -80,32 +97,45 @@ def scoreModels(models, newTestPictures, testNum, testLabels, verbose=True):
         predicted = answer[max(results)]
         if verbose:
             print "predicted: ", predicted
-        if predicted == groundTruth[picChecked]:
+        actual = groundTruth[picChecked]
+        if predicted == actual:
             acc += 1
         if verbose:
-            print "actual: ", groundTruth[picChecked]
+            print "actual: ", actual
             print '-----------------'
+        confusionTuples.append((predicted, actual))
 
     total_num = len(newTestPictures)
+    print 'total pics scored:', total_num
     print 'acc: ', float(acc)/total_num
+    return confusionTuples
 
 if __name__ == "__main__":
-    num = 5000
+    num = 200
     testNum = 500
-
+    all_samples = True
     testLabels = ['0', '1', '2', '3', '4', '6']
+
+    if all_samples:
+        num = 28711
     print 'running with', num, 'pictures'
+
     print 'reading in data'
-    picObservations, labels, testPictures, groundTruth, testNum = readInData(num, testNum, testLabels)
+    picObservations, labels, testPictures, groundTruth, testNum = readInData(num, testNum, testLabels, all_samples=all_samples)
+
     print 'separating data'
     observations, newTestPictures = separateData(picObservations, testPictures, testLabels)
     observations = zip(observations, testLabels)
-    # observations = [obs0, obs1, obs2, obs3, obs4, obs6]
+
     print 'fitting gauModels'
     gauModels = list(Pool(len(observations)).map(myGauFit, observations))
 
     print 'scoring gauModels'
-    scoreModels(gauModels, newTestPictures, testNum, testLabels, False)
+    confusionTuples = scoreModels(gauModels, newTestPictures, testNum, testLabels, verbose=False)
+
+    print 'generating confusion matrix'
+    confusionMatrix = tuplesToConfusion(confusionTuples, testLabels)
+    printConfusion(confusionMatrix, testLabels)
 
     print 'saving'
     for index, i in enumerate(testLabels):
