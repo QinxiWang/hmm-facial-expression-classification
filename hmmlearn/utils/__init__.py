@@ -20,6 +20,7 @@ def normalize(A, axis=None):
     """
     #print "before normalize", A
     A += np.finfo(float).eps
+    A[np.isnan(A)] = 0.0
     Asum = A.sum(axis)
     if axis and A.ndim > 1:
         # Make sure we don't divide by zero.
@@ -27,6 +28,14 @@ def normalize(A, axis=None):
         shape = list(A.shape)
         shape[axis] = 1
         Asum.shape = shape
+    # print 'A', A
+    # print 'Asum', Asum
+    # print type(Asum)
+    # print type(Asum) != numpy.float64
+    # if type(Asum) != numpy.float64:
+    #     for i, j in enumerate(Asum):
+    #         if np.isnan(j):
+    #             Asum[i] = 1.0
     A /= Asum
     # TODO: should return nothing, since the operation is inplace.
     #print("after normalize", A)
