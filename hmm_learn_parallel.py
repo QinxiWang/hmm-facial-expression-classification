@@ -156,6 +156,7 @@ if __name__ == "__main__":
     testNum = 500
     all_samples = True
     cluster = False  # Note, cluster overrides top2Acc and top3Acc
+    doSave = False
     scoresToCSV = True
     clusters = [('0', '1', '2', '4'), ('3'), ('6')]
     testLabels = ['0', '1', '2', '3', '4', '6']
@@ -182,6 +183,7 @@ if __name__ == "__main__":
     confusionMatrix = tuplesToConfusion(confusionTuples, testLabels, cluster, clusters)
     printConfusion(confusionMatrix, testLabels, cluster, clusters)
 
-    print 'saving'
-    for index, i in enumerate(testLabels):
-        joblib.dump(gauModels[index], 'models/model-' + i + '.pkl')
+    if doSave:
+        print 'saving'
+        for index, i in enumerate(testLabels):
+            joblib.dump(gauModels[index], 'models/model-' + i + '.pkl')
