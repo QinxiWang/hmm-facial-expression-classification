@@ -181,7 +181,7 @@ if __name__ == "__main__":
     observations = zip(observations, testLabels)
 
     print 'fitting gauModels'
-    gauModels = list(Pool(len(observations)).map(myGauFit, observations))
+    gauModels = list(Pool(min(multiprocessing.cpu_count(), len(observations))).map(myGauFit, observations))
 
     print 'scoring gauModels'
     confusionTuples = scoreModels(gauModels, newTestPictures, testNum, testLabels, groundTruth,
