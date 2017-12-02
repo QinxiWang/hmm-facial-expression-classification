@@ -64,25 +64,33 @@ def myGauFit(obs):
 def tuplesToConfusion(tuples, testLabels):
 
     indices = {}
-    for i, j in enumerate(testLabels):
-        indices[j] = i
-
-    result = [[0 for j in testLabels] for i in testLabels]
+    size = len(testLabels)
+    if cluster:
+        size = len(clusters)
+        for i, group in enumerate(clusters):
+            for j in group:
+                indices[j] = i
+    else:
+        for i, j in enumerate(testLabels):
+            indices[j] = i
+    result = [[0 for j in range(size)] for i in range(size)]
     for i, j in tuples:
         result[indices[i]][indices[j]] += 1
     result = [[str(result[i][j]) for j in range(len(testLabels))] for i in range(len(testLabels))]
     return result
 
-def printConfusion(arr, testLabels):
+def printConfusion(arr, testLabels, cluster=False, clusters=[]):
+    if cluster:
+        testLabels = [i[0] for i in clusters]
     lineLen = len("   | \'" + "\' | \'".join(testLabels) + "\' |")
     print "   | \'" + "\' | \'".join(testLabels) + "\' |"
     print '-' * lineLen
     for i, j in enumerate(arr):
         # this may be the worst line of code I've ever written. I hate text formatting
-        print "\'" + testLabels[i] + "\'|" + '|'.join([' ' * (1 + (len(k) == 1) - (len(k) >= 4)) + k + ' ' * (2 - (len(k) == 5) - (len(k) >= 4)) for k in j]) + '|'
+        print "\'" + testLabels[i] + "\'|" + '|'.join([' ' * (1 + (len(k) == 1) - (len(k) >= 4)) + k + ' ' * (2 - (len(k) == 5) - (len(k) >= 3)) for k in j]) + '|'
         print '-' * lineLen
 
-def scoreModels(models, newTestPictures, testNum, testLabels, verbose=True):
+def scoreModels(models, newTestPictures, testNum, testLabels, groundTruth, verbose=True, cluster=False, clusters=[], scoresToCSV=False):
 
     confusionTuples = []
     acc = 0
@@ -103,8 +111,13 @@ def scoreModels(models, newTestPictures, testNum, testLabels, verbose=True):
         if verbose:
             print "predicted: ", predicted
         actual = groundTruth[picChecked]
-        if predicted == actual:
-            acc += 1
+        if cluster:
+            for c in clusters:
+                if predicted in c and actual in c:
+                    acc += 1
+        else:
+            if predicted == actual:
+                acc += 1
         if verbose:
             print "actual: ", actual
             print '-----------------'
@@ -119,7 +132,9 @@ if __name__ == "__main__":
     num = 200
     testNum = 500
     all_samples = True
+    cluster = False  # Note, cluster overrides top2Acc and top3Acc
     scoresToCSV = True
+    clusters = [('0', '1', '2', '4'), ('3'), ('6')]
     testLabels = ['0', '1', '2', '3', '4', '6']
 
     if all_samples:
@@ -137,11 +152,12 @@ if __name__ == "__main__":
     gauModels = list(Pool(len(observations)).map(myGauFit, observations))
 
     print 'scoring gauModels'
-    confusionTuples = scoreModels(gauModels, newTestPictures, testNum, testLabels, verbose=False)
+    confusionTuples = scoreModels(gauModels, newTestPictures, testNum, testLabels, groundTruth,
+                                  verbose=False, cluster=cluster, clusters=clusters, scoresToCSV=scoresToCSV)
 
     print 'generating confusion matrix'
-    confusionMatrix = tuplesToConfusion(confusionTuples, testLabels)
-    printConfusion(confusionMatrix, testLabels)
+    confusionMatrix = tuplesToConfusion(confusionTuples, testLabels, cluster, clusters)
+    printConfusion(confusionMatrix, testLabels, cluster, clusters)
 
     print 'saving'
     for index, i in enumerate(testLabels):
