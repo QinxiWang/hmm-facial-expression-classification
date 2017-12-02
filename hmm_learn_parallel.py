@@ -61,7 +61,7 @@ def myGauFit(obs):
     print 'completed model', obs[1]
     return result
 
-def tuplesToConfusion(tuples, testLabels):
+def tuplesToConfusion(tuples, testLabels, cluster=False, clusters=['']):
 
     indices = {}
     size = len(testLabels)
@@ -76,7 +76,8 @@ def tuplesToConfusion(tuples, testLabels):
     result = [[0 for j in range(size)] for i in range(size)]
     for i, j in tuples:
         result[indices[i]][indices[j]] += 1
-    result = [[str(result[i][j]) for j in range(len(testLabels))] for i in range(len(testLabels))]
+    
+    result = [[str(result[i][j]) for j in range(size)] for i in range(size)]
     return result
 
 def printConfusion(arr, testLabels, cluster=False, clusters=[]):
@@ -94,6 +95,14 @@ def scoreModels(models, newTestPictures, testNum, testLabels, groundTruth, verbo
 
     confusionTuples = []
     acc = 0
+    top2Acc = 0
+    top3Acc = 0
+
+    count = {}
+    for i in groundTruth:
+        count[i] = count.setdefault(i, 0) + 1
+    for j in list(count.keys()):
+        print count[j], 'test pics in', j
     if scoresToCSV:
         f = open('scores.csv', 'wb')
         writer = csv.writer(f)
@@ -111,21 +120,35 @@ def scoreModels(models, newTestPictures, testNum, testLabels, groundTruth, verbo
         if verbose:
             print "predicted: ", predicted
         actual = groundTruth[picChecked]
+        if scoresToCSV:
+            writer.writerow(results + [actual])
         if cluster:
             for c in clusters:
                 if predicted in c and actual in c:
                     acc += 1
         else:
+            results.sort(reverse=True)
+            top3 = [answer[i] for i in results[:3]]
+            top2 = [answer[i] for i in results[:2]]
+            if actual in top3:
+                top3Acc += 1
+            if actual in top2:
+                top2Acc += 1
             if predicted == actual:
                 acc += 1
         if verbose:
             print "actual: ", actual
             print '-----------------'
         confusionTuples.append((predicted, actual))
+    if scoresToCSV:
+        f.close()
 
     total_num = len(newTestPictures)
     print 'total pics scored:', total_num
     print 'acc: ', float(acc)/total_num
+    if not(cluster):
+        print 'top 2 acc: ', float(top2Acc) / total_num
+        print 'top 3 acc: ', float(top3Acc) / total_num
     return confusionTuples
 
 if __name__ == "__main__":
