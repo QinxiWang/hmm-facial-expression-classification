@@ -2,6 +2,7 @@ from hmmlearn.hmm import GaussianHMM
 import numpy as np
 from multiprocessing import Pool
 from sklearn.externals import joblib
+import csv, multiprocessing
 
 def rowPics2Mat(pictures):
     result = []
@@ -85,6 +86,10 @@ def scoreModels(models, newTestPictures, testNum, testLabels, verbose=True):
 
     confusionTuples = []
     acc = 0
+    if scoresToCSV:
+        f = open('scores.csv', 'wb')
+        writer = csv.writer(f)
+        writer.writerow(testLabels + ['actual'])
     for picChecked in range(testNum):
         if verbose:
             print "checking num", picChecked
@@ -114,6 +119,7 @@ if __name__ == "__main__":
     num = 200
     testNum = 500
     all_samples = True
+    scoresToCSV = True
     testLabels = ['0', '1', '2', '3', '4', '6']
 
     if all_samples:
