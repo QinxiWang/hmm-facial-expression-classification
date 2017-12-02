@@ -1,4 +1,4 @@
-from hmmlearn.hmm import GaussianHMM
+from hmmlearn1.hmm import GaussianHMM
 import numpy as np
 from multiprocessing import Pool
 from sklearn.externals import joblib
