@@ -23,7 +23,7 @@ def rowPics2Mat(pictures):
 # num 50: -16242.8598496
 # num 100: -15691.0567749
 
-def readInData(num=500, testNum=100, testLabels=['0', '4', '5', '6'], all_samples=False):
+def readInData(num=500, testNum=100, testLabels=['0', '4', '5', '6'], all_samples=False, test_all=False):
     testStartIndex = 28711
 
     x = open('fer2013.csv', 'r').readlines()
@@ -38,9 +38,14 @@ def readInData(num=500, testNum=100, testLabels=['0', '4', '5', '6'], all_sample
     else:
         picObservations = [[int(j) for j in i[1].split()] for i in pictures[1:num] if (i[0] in testLabels and i[2] == "Training\n")]
         labels = [i[0] for i in pictures[1:num] if (i[0] in testLabels and i[2] == "Training\n")]
-
-        testPictures = [[int(j) for j in i[1].split()] for i in pictures[testStartIndex:testStartIndex + testNum] if (i[0] in testLabels and i[2] == "PublicTest\n")]
-        groundTruth = [i[0] for i in pictures[testStartIndex:testStartIndex + testNum] if (i[0] in testLabels and i[2] == "PublicTest\n")]
+        if test_all:
+            testPictures = [[int(j) for j in i[1].split()] for i in pictures if
+                            (i[0] in testLabels and i[2] == "PublicTest\n")]
+            groundTruth = [i[0] for i in pictures if
+                           (i[0] in testLabels and i[2] == "PublicTest\n")]
+        else:
+            testPictures = [[int(j) for j in i[1].split()] for i in pictures[testStartIndex:testStartIndex + testNum] if (i[0] in testLabels and i[2] == "PublicTest\n")]
+            groundTruth = [i[0] for i in pictures[testStartIndex:testStartIndex + testNum] if (i[0] in testLabels and i[2] == "PublicTest\n")]
 
     testNum = len(testPictures)
 
@@ -152,12 +157,15 @@ def scoreModels(models, newTestPictures, testNum, testLabels, groundTruth, verbo
     return confusionTuples
 
 if __name__ == "__main__":
-    num = 200
-    testNum = 500
-    all_samples = True
+    num = 350
+    testNum = 100
+
+    all_samples = False
+    test_all = True
     cluster = False  # Note, cluster overrides top2Acc and top3Acc
     doSave = False
     scoresToCSV = True
+
     clusters = [('0', '1', '2', '4'), ('3'), ('6')]
     testLabels = ['0', '1', '2', '3', '4', '6']
 
@@ -166,7 +174,7 @@ if __name__ == "__main__":
     print 'running with', num, 'pictures'
 
     print 'reading in data'
-    picObservations, labels, testPictures, groundTruth, testNum = readInData(num, testNum, testLabels, all_samples=all_samples)
+    picObservations, labels, testPictures, groundTruth, testNum = readInData(num, testNum, testLabels, all_samples=all_samples, test_all=test_all)
 
     print 'separating data'
     observations, newTestPictures = separateData(picObservations, testPictures, testLabels)
