@@ -28,7 +28,7 @@ def readInData(numSubjects=10):
         if subject == '.DS_Store':
             continue
         subjectArr = []
-        for sequence in  os.listdir(f_path + '/' + subject):
+        for sequence in os.listdir(f_path + '/' + subject):
             if sequence == '.DS_Store':
                 continue
             last_file = ''
@@ -38,8 +38,9 @@ def readInData(numSubjects=10):
                 last_file = filename
                 if filename == '.DS_Store':
                     continue
-                img = imageio.imread(f_path + '/' + subject + '/' + sequence+ '/' + filename)
-                currImgSeq.append(img)
+                # img = imageio.imread(f_path + '/' + subject + '/' + sequence+ '/' + filename)
+                # currImgSeq.append(img)
+
             for filename in os.listdir(landmark_path + '/' + subject + '/' + sequence):
                 if filename == '.DS_Store':
                     continue
@@ -108,59 +109,27 @@ def separateIntoCategories(landmarks, emotions, labels):
     return [np.concatenate([landmarks[i] for i in range(len(landmarks)) if emotions[i] == label]) for label in labels]
     #return [[landmarks[i] for i in range(len(landmarks)) if emotions[i] == label] for label in labels]
 
-
-if __name__ == "__main__":
-
-    num = ALL_SUBJECTS
-    testPercent = 0.1
-    labels = ['1', '3', '4', '5', '6', '7']
-
-    print 'running for', num, 'subjects'
-    print 'reading in data'
-    data = readInData(num)
-    print 'formatting data'
-    landmarks, emotions = separateLandmarkSequences(data)
-
-    testNum = len(landmarks) // (1 / testPercent)
-    trainingLandmarks = landmarks[testNum:]
-    trainingEmotions = emotions[testNum:]
-
-    testLandmarks = landmarks[:testNum]
-    testEmotions = emotions[:testNum]
-
+def fitLandmarks(trainingLandmarks, trainingEmotions, labels):
     observations = separateIntoCategories(trainingLandmarks, trainingEmotions, labels)
 
     print 'fitting models for', len(trainingLandmarks), 'sequences'
-    iterations = 100
+    iterations = 1000
     models = [GaussianHMM(n_iter=iterations).fit(obs) for obs in observations]
+    return models
 
-    model1 = GaussianHMM(n_iter=iterations).fit(observations[0])
-    model2 = GaussianHMM(n_iter=iterations).fit(observations[1])
-    model3 = GaussianHMM(n_iter=iterations).fit(observations[2])
-    model4 = GaussianHMM(n_iter=iterations).fit(observations[3])
-    model5 = GaussianHMM(n_iter=iterations).fit(observations[4])
-    model6 = GaussianHMM(n_iter=iterations).fit(observations[5])
-    #model7 = GaussianHMM(covariance_type='diag', n_iter=100).fit(observations[6], labels[6])
-
-    print 'scoring', len(testLandmarks), 'sequences'
-
+def scoreLandmarks(models, testLandmarks, testEmotions, labels):
     acc = 0
     top2Acc = 0
     top3Acc = 0
     for i in range(len(testEmotions)):
         scores = []
         answer = {}
-        scores.append(model1.score(testLandmarks[i]))
-        scores.append(model2.score(testLandmarks[i]))
-        scores.append(model3.score(testLandmarks[i]))
-        scores.append(model4.score(testLandmarks[i]))
-        scores.append(model5.score(testLandmarks[i]))
-        scores.append(model6.score(testLandmarks[i]))
-        #scores.append(model7.score(testLandmarks[i]))
+        for model in models:
+            scores.append(model.score(testLandmarks[i]))
         for k, j in zip(scores, labels):
             answer[k] = j
-        print 'predicted:', answer[max(scores)]
-        print 'actual:', testEmotions[i]
+        # print 'predicted:', answer[max(scores)]
+        # print 'actual:', testEmotions[i]
         if testEmotions[i] == answer[max(scores)]:
             acc += 1
         scores.sort(reverse=True)
@@ -171,6 +140,58 @@ if __name__ == "__main__":
     print 'acc:', float(acc)/len(testEmotions)
     print 'top 2 acc:', float(top2Acc)/len(testEmotions)
     print 'top 3 acc:', float(top3Acc)/len(testEmotions)
+    return acc, top2Acc, top3Acc, len(testEmotions)
+
+if __name__ == "__main__":
+
+    num = ALL_SUBJECTS
+    numFolds = 10
+    labels = ['1', '2', '3', '4', '5', '6', '7']
+
+    print 'running for', num, 'subjects'
+    print 'reading in data'
+    data = readInData(num)
+    print 'formatting data'
+    landmarks, emotions = separateLandmarkSequences(data)
+
+    testNumIndexMin = 0
+    testNum = len(landmarks) // numFolds
+    testNumIndexMax = testNum
+
+    totalAcc = 0
+    totalTop2Acc = 0
+    totalTop3Acc = 0
+    totalTested = 0
+    for fold in range(numFolds):
+        print '=================='
+        print 'fold', fold + 1
+
+        trainingLandmarks = landmarks[:testNumIndexMin] + landmarks[testNumIndexMax:]
+        trainingEmotions = emotions[:testNumIndexMin] + emotions[testNumIndexMax:]
+
+        testLandmarks = landmarks[testNumIndexMin:testNumIndexMax]
+        testEmotions = emotions[testNumIndexMin:testNumIndexMax]
+
+        models = fitLandmarks(trainingLandmarks, trainingEmotions, labels)
+
+        print 'scoring', len(testLandmarks), 'sequences'
+
+        acc, top2Acc, top3Acc, tested = scoreLandmarks(models, testLandmarks, testEmotions, labels)
+
+        totalAcc += acc
+        totalTop2Acc += top2Acc
+        totalTop3Acc += top3Acc
+        totalTested += tested
+
+        testNumIndexMin += testNum
+        testNumIndexMax += testNum
+
+    print 'totals after cross validation'
+    print '-----------------------------'
+    print 'scored', totalTested, 'sequences'
+    print 'acc:', float(totalAcc)/totalTested
+    print 'top 2 acc:', float(totalTop2Acc)/totalTested
+    print 'top 3 acc:', float(totalTop3Acc)/totalTested
 
 
 
