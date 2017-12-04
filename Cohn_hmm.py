@@ -117,10 +117,11 @@ def fitLandmarks(trainingLandmarks, trainingEmotions, labels):
     models = [GaussianHMM(n_iter=iterations).fit(obs) for obs in observations]
     return models
 
-def scoreLandmarks(models, testLandmarks, testEmotions, labels):
+def scoreLandmarks(models, testLandmarks, testEmotions, labels, cluster=False, clusters=[]):
     acc = 0
     top2Acc = 0
     top3Acc = 0
+    confusionTuples = []
     for i in range(len(testEmotions)):
         scores = []
         answer = {}
@@ -130,25 +131,68 @@ def scoreLandmarks(models, testLandmarks, testEmotions, labels):
             answer[k] = j
         # print 'predicted:', answer[max(scores)]
         # print 'actual:', testEmotions[i]
-        if testEmotions[i] == answer[max(scores)]:
-            acc += 1
-        scores.sort(reverse=True)
-        if testEmotions[i] in [answer[k] for k in scores[:2]]:
-            top2Acc += 1
-        if testEmotions[i] in [answer[k] for k in scores[:3]]:
-            top3Acc += 1
+        predicted = answer[max(scores)]
+        actual = testEmotions[i]
+        confusionTuples.append((predicted, actual))
+        if cluster:
+            for c in clusters:
+                if predicted in c and actual in c:
+                    acc += 1
+        else:
+            if actual == predicted:
+                acc += 1
+            scores.sort(reverse=True)
+            if actual in [answer[k] for k in scores[:2]]:
+                top2Acc += 1
+            if actual in [answer[k] for k in scores[:3]]:
+                top3Acc += 1
     print 'acc:', float(acc)/len(testEmotions)
-    print 'top 2 acc:', float(top2Acc)/len(testEmotions)
-    print 'top 3 acc:', float(top3Acc)/len(testEmotions)
-    return acc, top2Acc, top3Acc, len(testEmotions)
+    if not(cluster):
+        print 'top 2 acc:', float(top2Acc)/len(testEmotions)
+        print 'top 3 acc:', float(top3Acc)/len(testEmotions)
+    return acc, top2Acc, top3Acc, len(testEmotions), confusionTuples
+
+def tuplesToConfusion(tuples, testLabels, cluster=False, clusters=['']):
+
+    indices = {}
+    size = len(testLabels)
+    if cluster:
+        size = len(clusters)
+        for i, group in enumerate(clusters):
+            for j in group:
+                indices[j] = i
+    else:
+        for i, j in enumerate(testLabels):
+            indices[j] = i
+    result = [[0 for j in range(size)] for i in range(size)]
+    for i, j in tuples:
+        result[indices[i]][indices[j]] += 1
+
+    result = [[str(result[i][j]) for j in range(size)] for i in range(size)]
+    return result
+
+def printConfusion(arr, testLabels, cluster=False, clusters=[]):
+    if cluster:
+        testLabels = [i[0] for i in clusters]
+    lineLen = len("   | \'" + "\' | \'".join(testLabels) + "\' |")
+    print "   | \'" + "\' | \'".join(testLabels) + "\' |"
+    print '-' * lineLen
+    for i, j in enumerate(arr):
+        # this may be the worst line of code I've ever written. I hate text formatting
+        print "\'" + testLabels[i] + "\'|" + '|'.join([' ' * (1 + (len(k) == 1) - (len(k) >= 4)) + k + ' ' * (2 - (len(k) == 5) - (len(k) >= 3)) for k in j]) + '|'
+        print '-' * lineLen
 
 if __name__ == "__main__":
 
     num = ALL_SUBJECTS
     numFolds = 10
     labels = ['1', '2', '3', '4', '5', '6', '7']
+    clusters = [('1', '2', '3', '4', '6'), ('5', '7')]
+    cluster = True
 
     print 'running for', num, 'subjects'
+    if cluster:
+        print 'with clusters', clusters
     print 'reading in data'
     data = readInData(num)
     print 'formatting data'
@@ -162,6 +206,8 @@ if __name__ == "__main__":
     totalTop2Acc = 0
     totalTop3Acc = 0
     totalTested = 0
+    totalConfusion = []
+
     for fold in range(numFolds):
         print '=================='
         print 'fold', fold + 1
@@ -176,12 +222,13 @@ if __name__ == "__main__":
 
         print 'scoring', len(testLandmarks), 'sequences'
 
-        acc, top2Acc, top3Acc, tested = scoreLandmarks(models, testLandmarks, testEmotions, labels)
+        acc, top2Acc, top3Acc, tested, confusionTuples = scoreLandmarks(models, testLandmarks, testEmotions, labels, cluster, clusters)
 
         totalAcc += acc
         totalTop2Acc += top2Acc
         totalTop3Acc += top3Acc
         totalTested += tested
+        totalConfusion += confusionTuples
 
         testNumIndexMin += testNum
         testNumIndexMax += testNum
@@ -190,8 +237,12 @@ if __name__ == "__main__":
     print '-----------------------------'
     print 'scored', totalTested, 'sequences'
     print 'acc:', float(totalAcc)/totalTested
-    print 'top 2 acc:', float(totalTop2Acc)/totalTested
-    print 'top 3 acc:', float(totalTop3Acc)/totalTested
+    if not(cluster):
+        print 'top 2 acc:', float(totalTop2Acc)/totalTested
+        print 'top 3 acc:', float(totalTop3Acc)/totalTested
+    print 'generating confusion matrix'
+    confusionMatrix = tuplesToConfusion(totalConfusion, labels, cluster, clusters)
+    printConfusion(confusionMatrix, labels, cluster, clusters)
 
 
 
