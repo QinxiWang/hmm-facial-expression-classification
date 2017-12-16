@@ -238,7 +238,7 @@ class _BaseHMM(BaseEstimator):
         decode : Find most likely state sequence corresponding to ``X``.
         """
         check_is_fitted(self, "startprob_")
-        self._check()
+        # self._check()
 
         X = check_array(X)
         # XXX we can unroll forward pass for speed and memory efficiency.
@@ -395,7 +395,7 @@ class _BaseHMM(BaseEstimator):
 
         return np.atleast_2d(X), np.array(state_sequence, dtype=int)
 
-    def fit(self, X, lengths=None):
+    def fit(self, X, lengths=None, modelLabel=None):
         """Estimate model parameters.
 
         An initialization step is performed before entering the
@@ -423,6 +423,9 @@ class _BaseHMM(BaseEstimator):
 
         self.monitor_ = ConvergenceMonitor(self.tol, self.n_iter, self.verbose)
         for iter in range(self.n_iter):
+            if modelLabel:
+                if iter % (self.n_iter // 10) == 0:
+                    print('model', modelLabel, ':', iter)
             stats = self._initialize_sufficient_statistics()
             curr_logprob = 0
             for i, j in iter_from_X_lengths(X, lengths):

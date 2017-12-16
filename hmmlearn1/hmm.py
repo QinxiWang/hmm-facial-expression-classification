@@ -259,6 +259,9 @@ class GaussianHMM(_BaseHMM):
             if prior is None:
                 weight = 0
                 prior = 0
+            for i, j in enumerate(denom):
+                if j == 0 and weight == 0:
+                    denom[i] = 1.0
             self._means_ = (weight * prior + stats['obs']) / (weight + denom)
 
         if 'c' in params:

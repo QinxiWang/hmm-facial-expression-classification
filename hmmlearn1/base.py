@@ -5,17 +5,20 @@ from sklearn.base import BaseEstimator
 from sklearn.utils import check_random_state
 from scipy.misc import logsumexp
 import math
+from multiprocessing import Pool
+from random import shuffle
 
 from . import _hmmc
 from .utils import normalize
 
 decoder_algorithms = frozenset(("viterbi", "map"))
 
-
 ZEROLOGPROB = -1e200
 EPS = np.finfo(float).eps
 NEGINF = -np.inf
 
+def unwrap(arg, **kwarg):
+    return _BaseHMM.doParallelStep(*arg, **kwarg)
 
 class _BaseHMM(BaseEstimator):
     """Hidden Markov Model base class.
@@ -96,9 +99,9 @@ class _BaseHMM(BaseEstimator):
         self.thresh = thresh
         self.params = params
         self.init_params = init_params
-        #print 'before init', startprob
-	self.startprob_ = startprob
-	#print 'after init', startprob
+        # print 'before init', startprob
+        self.startprob_ = startprob
+        #print 'after init', startprob
         self.startprob_prior = startprob_prior
         self.transmat_ = transmat
         self.transmat_prior = transmat_prior
@@ -168,10 +171,10 @@ class _BaseHMM(BaseEstimator):
         """
         obs = np.asarray(obs)
         framelogprob = self._compute_log_likelihood(obs)
-        #print framelogprob
-	logprob = float('nan')
-	#while(math.isnan(logprob)):
-	logprob, _ = self._do_forward_pass(framelogprob)
+        # print framelogprob
+        logprob = float('nan')
+        #while(math.isnan(logprob)):
+        logprob, _ = self._do_forward_pass(framelogprob)
         return logprob
 
     def _decode_viterbi(self, obs):
@@ -348,6 +351,83 @@ class _BaseHMM(BaseEstimator):
 
         return np.array(obs), np.array(hidden_states, dtype=int)
 
+    def doParallelStep(self, obs):
+        stats = self._initialize_sufficient_statistics()
+        curr_logprob = 0
+        framelogprob = 0
+        posteriors = []
+        fwdlattice = []
+        bwdlattice = []
+
+        for seq in obs:
+            framelogprob = self._compute_log_likelihood(seq)
+            # print 'framelogprob', framelogprob
+            lpr, fwdlattice = self._do_forward_pass(framelogprob)
+            bwdlattice = self._do_backward_pass(framelogprob)
+            #print 'fwdlattice', fwdlattice
+            #print 'bwdlattice', bwdlattice
+            gamma = fwdlattice + bwdlattice
+            if math.isnan(gamma[0][0]):
+                continue
+            #print 'gamma', gamma
+            posteriors = np.exp(gamma.T - logsumexp(gamma, axis=1)).T
+            #print 'logsumgamma', logsumexp(gamma, axis=1)
+            #print 'posteriors in fit', posteriors
+            curr_logprob += lpr
+            self._accumulate_sufficient_statistics(
+                stats, seq, framelogprob, posteriors, fwdlattice,
+                bwdlattice, self.params)
+        return curr_logprob, stats, framelogprob, posteriors, fwdlattice,bwdlattice
+
+    def parallelFit(self, obs, modelNum, numThreads=4):
+        """Estimate model parameters.
+
+        An initialization step is performed before entering the EM
+        algorithm. If you want to avoid this step, pass proper
+        ``init_params`` keyword argument to estimator's constructor.
+
+        Parameters
+        ----------
+        obs : list
+            List of array-like observation sequences, each of which
+            has shape (n_i, n_features), where n_i is the length of
+            the i_th observation.
+
+        Notes
+        -----
+        In general, `logprob` should be non-decreasing unless
+        aggressive pruning is used.  Decreasing `logprob` is generally
+        a sign of overfitting (e.g. a covariance parameter getting too
+        small).  You can fix this by getting more training data,
+        or strengthening the appropriate subclass-specific regularization
+        parameter.
+        """
+        self._init(obs, self.init_params)
+
+        logprob = []
+        p = Pool(numThreads)
+
+        for i in range(self.n_iter):
+            if i % (self.n_iter // 10) == 0:
+                print 'model', modelNum, ':', i
+            shuffle(obs)
+            fitObs = list(np.array_split(np.array(obs), numThreads))
+            result = list(p.map(unwrap, zip([self] * len(fitObs), fitObs)))
+            result.sort(reverse=True, key=lambda x: x[0])
+            # print [k[0] for k in result]
+            curr_logprob, stats, framelogprob, posteriors, fwdlattice, bwdlattice = result[0]
+            # self._accumulate_sufficient_statistics(
+            #     stats, obs, framelogprob, posteriors, fwdlattice,
+            #     bwdlattice, self.params)
+            logprob.append(curr_logprob)
+            # Check for convergence.
+            if i > 0 and abs(logprob[-1] - logprob[-2]) < self.thresh:
+                break
+            # Maximization step
+            self._do_mstep(stats, self.params)
+        p.close()
+        return self
+
     def fit(self, obs, modelNum):
         """Estimate model parameters.
 
@@ -382,19 +462,19 @@ class _BaseHMM(BaseEstimator):
             curr_logprob = 0
             for seq in obs:
                 framelogprob = self._compute_log_likelihood(seq)
-                #print 'framelogprob', framelogprob
-		lpr, fwdlattice = self._do_forward_pass(framelogprob)
+                # print 'framelogprob', framelogprob
+                lpr, fwdlattice = self._do_forward_pass(framelogprob)
                 bwdlattice = self._do_backward_pass(framelogprob)
                 #print 'fwdlattice', fwdlattice
-		#print 'bwdlattice', bwdlattice
-		gamma = fwdlattice + bwdlattice
-		if math.isnan(gamma[0][0]):
-			continue
-		#print 'gamma', gamma
+                #print 'bwdlattice', bwdlattice
+                gamma = fwdlattice + bwdlattice
+                if math.isnan(gamma[0][0]):
+                    continue
+                #print 'gamma', gamma
                 posteriors = np.exp(gamma.T - logsumexp(gamma, axis=1)).T
                 #print 'logsumgamma', logsumexp(gamma, axis=1)
-		#print 'posteriors in fit', posteriors
-		curr_logprob += lpr
+                #print 'posteriors in fit', posteriors
+                curr_logprob += lpr
                 self._accumulate_sufficient_statistics(
                     stats, seq, framelogprob, posteriors, fwdlattice,
                     bwdlattice, self.params)
@@ -429,22 +509,23 @@ class _BaseHMM(BaseEstimator):
             startprob = np.tile(1.0 / self.n_components, self.n_components)
         else:
             startprob = np.asarray(startprob, dtype=np.float)
-	#print("after changed to array", startprob)
+        # print("after changed to array", startprob)
         # check if there exists a component whose value is exactly zero
         # if so, add a small number and re-normalize
         if not np.alltrue(startprob):
             normalize(startprob)
-	    #print startprob
+            #print startprob
 
         #print "after alltrue", startprob
-	if len(startprob) != self.n_components:
+        if len(startprob) != self.n_components:
             raise ValueError('startprob must have length n_components')
         if not np.allclose(np.sum(startprob), 1.0):
-	    #print np.sum(startprob)
+            #print np.sum(startprob)
             raise ValueError('startprob must sum to 1.0')
 
         self._log_startprob = log_mask_zero(np.asarray(startprob).copy())
-	#print("after all:", self._log_startprob)
+
+    # print("after all:", self._log_startprob)
     startprob_ = property(_get_startprob, _set_startprob)
 
     def _get_transmat(self):
@@ -485,20 +566,20 @@ class _BaseHMM(BaseEstimator):
         n_observations, n_components = framelogprob.shape
         fwdlattice = np.zeros((n_observations, n_components))
         #print 'fwdlattice before hmmc', fwdlattice
-	#print 'variables', self._log_startprob, self._log_transmat
-	_hmmc._forward(n_observations, n_components, self._log_startprob,
+        #print 'variables', self._log_startprob, self._log_transmat
+        _hmmc._forward(n_observations, n_components, self._log_startprob,
                        self._log_transmat, framelogprob, fwdlattice)
-	#print 'fwdlattice after hmmc', fwdlattice
-	#print 'fwdlattice logsum', logsumexp(fwdlattice[-1])
+        #print 'fwdlattice after hmmc', fwdlattice
+        #print 'fwdlattice logsum', logsumexp(fwdlattice[-1])
         return logsumexp(fwdlattice[-1]), fwdlattice
 
     def _do_backward_pass(self, framelogprob):
         n_observations, n_components = framelogprob.shape
         bwdlattice = np.zeros((n_observations, n_components))
-	#print 'bwdlattice before hmmc', bwdlattice
+        #print 'bwdlattice before hmmc', bwdlattice
         _hmmc._backward(n_observations, n_components, self._log_startprob,
                         self._log_transmat, framelogprob, bwdlattice)
-	#print 'bwdlattice after hmmc', bwdlattice
+        #print 'bwdlattice after hmmc', bwdlattice
         return bwdlattice
 
     def _compute_log_likelihood(self, obs):
@@ -526,7 +607,7 @@ class _BaseHMM(BaseEstimator):
                                           params):
         stats['nobs'] += 1
         if 's' in params:
-	    #print "poooooooooop", posteriors
+            #print "poooooooooop", posteriors
             stats['start'] += posteriors[0]
         if 't' in params:
             n_observations, n_components = framelogprob.shape
@@ -550,20 +631,21 @@ class _BaseHMM(BaseEstimator):
             self.transmat_prior = 1.0
 
         if 's' in params:
-		#print("before hope", self.startprob_, self.startprob_prior, stats['start'])            	
-		self.startprob_ = normalize(
+            #print("before hope", self.startprob_, self.startprob_prior, stats['start'])
+            self.startprob_ = normalize(
                 np.maximum(self.startprob_prior - 1.0 + stats['start'], 1e-20))
-		#print('after hope', self.startprob_)
+        #print('after hope', self.startprob_)
         if 't' in params:
             transmat_ = normalize(
                 np.maximum(self.transmat_prior - 1.0 + stats['trans'], 1e-20),
                 axis=1)
             self.transmat_ = transmat_
 
+
 def log_mask_zero(prob):
-	prob = np.asarray(prob)
-	with np.errstate(divide='ignore'):
-		_log_prob = np.log(prob)
-	#print "after mask", _log_prob
-	return _log_prob	
+    prob = np.asarray(prob)
+    with np.errstate(divide='ignore'):
+        _log_prob = np.log(prob)
+        # print "after mask", _log_prob
+    return _log_prob
 	
